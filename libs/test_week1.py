@@ -3,6 +3,12 @@ import numpy as np
 import pytest
 
 
+def test_iterated():
+    game_matrix = np.array([[3, 2, 5], [1, 4, 6]])
+    simplified_matrix = week1.iterated_removal(game_matrix)
+    assert simplified_matrix[0] == 2
+    assert simplified_matrix[1] == 4
+
 def test_week1():
     matrix = np.array([[0, 1, -1], [-1, 0, 1], [1, -1, 0]])
     row_strategy = np.array([[0.1, 0.2, 0.7]])
