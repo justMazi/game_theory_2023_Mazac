@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 
 
 def iterated_removal(matrix):
@@ -13,7 +13,7 @@ def iterated_removal(matrix):
                         if other_strategy != strategy and all(
                                 matrix[player, i] >= matrix[player, other_strategy] for i in range(num_players)):
                             player_dominated[player] = True
-                            matrix = numpy.delete(matrix, strategy, axis=1)
+                            matrix = np.delete(matrix, strategy, axis=1)
                             num_strategies -= 1
                             break
             if player_dominated[player]:
@@ -35,55 +35,42 @@ def ComputeValuesFor_TwoPlayer_NonZeroSumGame(row_player_utility_matrix, column_
     :return: Values for row and column players.
     """
     # probabilities of all action combinations
-    prob_matrix = column_strategy @ row_strategy
+    prob_matrix = (column_strategy @ row_strategy).T
 
     # utilities of all combinations of actions multiplied by its probability
     row_utility_matrix = row_player_utility_matrix * prob_matrix
     column_utility_matrix = column_player_utility_matrix * prob_matrix
 
     # sum up to get value utilities
-    row_value = numpy.sum(row_utility_matrix)
-    column_value = numpy.sum(column_utility_matrix)
+    row_value = np.sum(row_utility_matrix)
+    column_value = np.sum(column_utility_matrix)
 
     return row_value, column_value
 
+def BestResponse_Pure_Strategy_To_Row(matrix: np.array, row_strat: np.array) -> np.array:
+    expected_payoffs = row_strat @ matrix
+    max_payoff = np.argmax(expected_payoffs, axis=1)
+    return CreatePureStrategy(len=matrix.shape[1], index=max_payoff).T
 
-# best response in a zero-sum game, I am minimizing utility of row player, hence maximizing value of column player
-def BestResponseValueAgainstRowPlayer(matrix, opponents_row_strategy):
-    return (opponents_row_strategy @ matrix).min()
+def BestResponse_Pure_Strategy_To_Column(matrix: np.array, column_strategy: np.array) -> np.array:
+    expected_payoffs = matrix @ column_strategy
+    max_payoff = np.argmax(expected_payoffs, axis=0)
+    return CreatePureStrategy(len=matrix.shape[0], index=max_payoff)
 
-# best response in a zero-sum game, I am minimizing utility of column player, hence maximizing value of row player
-def BestResponseValueAgainstColumnPlayer(matrix, opponents_column_strategy):
-    return (opponents_column_strategy.T @ matrix).min()
-
-
-
-
-def BestResponseStrategyAgainstColumnPlayer(matrix, opponents_column_strategy):
-    index = BestResponseActionIndexAgainstColumnPlayer(matrix, opponents_column_strategy)
-    vectorLength = len(opponents_column_strategy)
-    return CreatePureStrategyVector(vectorLength, index)
-
-def BestResponseStrategyAgainstRowPlayer(matrix, opponents_row_strategy):
-    index = BestResponseActionIndexAgainstRowPlayer(matrix, opponents_row_strategy)
-    vectorLength = len(opponents_row_strategy.T)
-    return CreatePureStrategyVector(vectorLength, index)
-
-def CreatePureStrategyVector(vectorLength, index):
-    return numpy.array([[1 if i == index else 0 for i in range(vectorLength)]])
+def CreatePureStrategy(len, index):
+    response = np.array([[1 if i==index else 0 for i in range(len)]])
+    return response
 
 
+def BestResponse_Value_To_Row(matrix: np.array, row_strategy: np.array) -> float:
+    """Value of the row player when facing a best-responding column player in a zero-sum game"""
+    bestResponseToRow = BestResponse_Pure_Strategy_To_Row(-matrix, row_strategy)
+    p1_val, p2_val = ComputeValuesFor_TwoPlayer_NonZeroSumGame(matrix, -matrix, row_strategy, bestResponseToRow)
+    return p1_val
 
 
-def BestResponseActionIndexAgainstColumnPlayer(matrix, opponents_column_strategy):
-    """
-    :return: Index of the best response action
-    """
-    return numpy.argmin(matrix @ opponents_column_strategy)
-
-def BestResponseActionIndexAgainstRowPlayer(matrix, opponents_row_strategy):
-    """
-    :return: Index of the best response action
-    """
-    res = matrix @ opponents_row_strategy.T
-    return numpy.argmin(res)
+def BestResponse_Value_To_Column(matrix: np.array, column_strategy: np.array) -> float:
+    """Value of the column player when facing a best-responding row player in a zero-sum game"""
+    bestResponseToCol = BestResponse_Pure_Strategy_To_Column(matrix, column_strategy)
+    p1_val, p2_val = ComputeValuesFor_TwoPlayer_NonZeroSumGame(matrix, -matrix, bestResponseToCol, column_strategy)
+    return p2_val
