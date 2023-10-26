@@ -1,29 +1,5 @@
 import numpy
 
-def evaluate(matrix, row_strategy, column_strategy):
-    result = 0
-    for i in range(row_strategy.size):
-        for j in range(column_strategy.size):
-            result += matrix[i][j] * row_strategy[0][i] * column_strategy[j][0]
-    return result
-
-def best_response_value_row(matrix, row_strategy):
-    return (row_strategy @ matrix).min()
-
-def best_response_value_column(matrix, column_strategy):
-    return (column_strategy.T @ matrix).min()
-
-def evaluateForZeroSumGames():
-    matrix1 = numpy.array([[0, 1, -1], [-1, 0, 1], [1, -1, 0]])
-    matrix2 = matrix1 * -1
-
-    row_strategy = numpy.array([[0.1, 0.2, 0.7]])
-    column_strategy = numpy.array([[0.3, 0.2, 0.5]]).transpose()
-
-    player1Value = evaluate(matrix1, row_strategy, column_strategy)
-    player2Value = evaluate(matrix2, row_strategy, column_strategy)
-    return
-
 
 def iterated_removal(matrix):
     num_players, num_strategies = matrix.shape
@@ -46,3 +22,68 @@ def iterated_removal(matrix):
         if not any(player_dominated):
             break
     return matrix
+
+
+# my super duper reusable methods for future assignments
+
+def ComputeValuesFor_TwoPlayer_NonZeroSumGame(row_player_utility_matrix, column_player_utility_matrix, row_strategy,column_strategy):
+    """
+    :param row_player_utility_matrix: Reward matrix for the row player.
+    :param column_player_utility_matrix: Reward matrix for the column player.
+    :param row_strategy: Probability distribution over actions of row player.
+    :param column_strategy: Probability distribution over actions of column player.
+    :return: Values for row and column players.
+    """
+    # probabilities of all action combinations
+    prob_matrix = column_strategy @ row_strategy
+
+    # utilities of all combinations of actions multiplied by its probability
+    row_utility_matrix = row_player_utility_matrix * prob_matrix
+    column_utility_matrix = column_player_utility_matrix * prob_matrix
+
+    # sum up to get value utilities
+    row_value = numpy.sum(row_utility_matrix)
+    column_value = numpy.sum(column_utility_matrix)
+
+    return row_value, column_value
+
+
+# best response in a zero-sum game, I am minimizing utility of row player, hence maximizing value of column player
+def BestResponseValueAgainstRowPlayer(matrix, opponents_row_strategy):
+    return (opponents_row_strategy @ matrix).min()
+
+# best response in a zero-sum game, I am minimizing utility of column player, hence maximizing value of row player
+def BestResponseValueAgainstColumnPlayer(matrix, opponents_column_strategy):
+    return (opponents_column_strategy.T @ matrix).min()
+
+
+
+
+def BestResponseStrategyAgainstColumnPlayer(matrix, opponents_column_strategy):
+    index = BestResponseActionIndexAgainstColumnPlayer(matrix, opponents_column_strategy)
+    vectorLength = len(opponents_column_strategy)
+    return CreatePureStrategyVector(vectorLength, index)
+
+def BestResponseStrategyAgainstRowPlayer(matrix, opponents_row_strategy):
+    index = BestResponseActionIndexAgainstRowPlayer(matrix, opponents_row_strategy)
+    vectorLength = len(opponents_row_strategy.T)
+    return CreatePureStrategyVector(vectorLength, index)
+
+def CreatePureStrategyVector(vectorLength, index):
+    return numpy.array([[1 if i == index else 0 for i in range(vectorLength)]])
+
+
+
+
+def BestResponseActionIndexAgainstColumnPlayer(matrix, opponents_column_strategy):
+    """
+    :return: Index of the best response action
+    """
+    return numpy.argmin(matrix @ opponents_column_strategy)
+
+def BestResponseActionIndexAgainstRowPlayer(matrix, opponents_row_strategy):
+    """
+    :return: Index of the best response action
+    """
+    res = matrix @ opponents_row_strategy.T
+    return numpy.argmin(res)
