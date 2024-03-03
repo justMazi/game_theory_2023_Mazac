@@ -3,46 +3,15 @@ import numpy as np
 import pytest
 
 
-def test_best_response_tests():
-    matrix = np.array([[50, 0, 0], [20, 0, 0]])
-
-    column_strategy = np.array([[1, 0, 0]]).transpose()
-
-    best_response_row_strategy = week1.BestResponse_Pure_Strategy_To_Column(matrix, column_strategy)
-
-    assert np.array_equal(best_response_row_strategy, np.array([[1, 0]]))
-
-    rowValue, colValue = week1.ComputeValuesFor_TwoPlayer_NonZeroSumGame(matrix, -matrix, best_response_row_strategy, column_strategy)
-
-    assert rowValue == 50
-
-def test_best_response_nonSquareMatrix_tests():
-    matrix = np.array([[0.420, 1, -1], [-1, 0, 1]])
-
-    row_strategy = np.array([[1, 0]])
-    column_strategy = np.array([[1, 0, 0]]).transpose()
-
-    val1, val2 = week1.ComputeValuesFor_TwoPlayer_NonZeroSumGame(matrix, -matrix, row_strategy, column_strategy)
-
-    assert val1 == 0.420
-    assert val2 == -0.420
-
-def test_iterated():
-    game_matrix = np.array([[3, 2, 5], [1, 4, 6]])
-    simplified_matrix = week1.iterated_removal(game_matrix)
-    assert simplified_matrix[0] == 2
-    assert simplified_matrix[1] == 4
-
-
 def test_week1():
     matrix = np.array([[0, 1, -1], [-1, 0, 1], [1, -1, 0]])
     row_strategy = np.array([[0.1, 0.2, 0.7]])
     column_strategy = np.array([[0.3, 0.2, 0.5]]).transpose()
 
-    rowValue, columnValue = week1.ComputeValuesFor_TwoPlayer_NonZeroSumGame(matrix, -matrix, row_strategy, column_strategy)
-    assert rowValue == pytest.approx(0.08)
+    row_value = week1.evaluate(matrix=matrix, row_strategy=row_strategy, column_strategy=column_strategy)
+    assert row_value == pytest.approx(0.08)
 
-    br_value_row = week1.BestResponse_Value_To_Row(matrix=matrix, row_strategy=row_strategy)
-    br_value_column = week1.BestResponse_Value_To_Column(matrix=matrix, column_strategy=column_strategy)
+    br_value_row = week1.best_response_value_row(matrix=matrix, row_strategy=row_strategy)
+    br_value_column = week1.best_response_value_column(matrix=matrix, column_strategy=column_strategy)
     assert br_value_row == pytest.approx(-0.6)
     assert br_value_column == pytest.approx(-0.2)
