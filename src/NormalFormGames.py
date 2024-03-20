@@ -164,9 +164,17 @@ class NormalFormGameCalculator:
             col_strategies.append(new_col_strat)
             
             # calculate exploitability
-            average_row = np.mean(row_strategies, axis=0)
-            average_col = np.mean(col_strategies, axis=0)
-            exploitability = self.get_exploitability(average_row, average_col)
+            a = np.average(row_strategies, axis=0)
+            row_length = self.row_player_utility_matrix.shape[0]
+            average_row = np.reshape(a, (row_length, 1))
+            t = np.transpose(average_row)
+
+            b = np.average(col_strategies, axis=0)
+            col_length = self.column_player_utility_matrix.shape[1]
+            average_col = np.reshape(b, (1, col_length))
+
+
+            exploitability = self.get_exploitability(t, average_col)
             exploitabilities.append(exploitability)
 
             # recieve reward vector
