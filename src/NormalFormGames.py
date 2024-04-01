@@ -94,15 +94,13 @@ class NormalFormGameCalculator:
 
         row_length = self.row_player_utility_matrix.shape[0]
         row_strategy = np.zeros(row_length)
-        random_index = np.random.randint(0, row_length)
-        row_strategy[random_index] = 1
+        row_strategy[0] = 1
         row_strategy = np.reshape(row_strategy, (row_length, 1))
 
         
         column_length = self.column_player_utility_matrix.shape[1]
         column_strategy = np.zeros(column_length)
-        random_index = np.random.randint(0, column_length)
-        column_strategy[random_index] = 1
+        column_strategy[0] = 1
         column_strategy = np.reshape(column_strategy, (1, column_length))
 
         row_player_actions = []
@@ -143,14 +141,14 @@ class NormalFormGameCalculator:
 
 
 
-    def regret_minimization(self, matrix1: np.array, matrix2: np.array, iterations: int):
+    def regret_minimization(self, iterations: int, use_average_strat_exploitation: bool):
         # Prepare arrays to store regrets
-        regrets_row = np.zeros(matrix1.shape[0])
-        regrets_col = np.zeros(matrix2.shape[1])
+        regrets_row = np.zeros(self.row_player_utility_matrix.shape[0])
+        regrets_col = np.zeros(self.column_player_utility_matrix.shape[1])
         
         row_strategies, row_reward_vectors = [], []
         col_strategies, col_reward_vectors = [], []
-        row_regrets_storing, col_regrets_storing = [], []
+        row_regrets, col_regrets = [], []
         
         cumulative_reward_row, cumulative_reward_col = 0, 0
 
@@ -159,28 +157,39 @@ class NormalFormGameCalculator:
         for i in range(iterations):
             # prepare new strategies 
             new_row_strat = self.regret_matching(regrets_row)
-            row_strategies.append(new_row_strat)
             new_col_strat = self.regret_matching(regrets_col)
-            col_strategies.append(new_col_strat)
             
-            # calculate exploitability
-            a = np.average(row_strategies, axis=0)
+            row_strategies.append(new_row_strat)
+            col_strategies.append(new_col_strat)
+
+            exploitability = float
+
             row_length = self.row_player_utility_matrix.shape[0]
-            average_row = np.reshape(a, (row_length, 1))
-            t = np.transpose(average_row)
-
-            b = np.average(col_strategies, axis=0)
             col_length = self.column_player_utility_matrix.shape[1]
-            average_col = np.reshape(b, (1, col_length))
 
 
-            exploitability = self.get_exploitability(t, average_col)
+            if use_average_strat_exploitation:
+
+                a = np.average(row_strategies, axis=0)
+                average_row = np.reshape(a, (row_length, 1))
+
+                b = np.average(col_strategies, axis=0)
+                average_col = np.reshape(b, (1, col_length))
+                exploitability = self.get_exploitability(average_row, average_col)
+
+            else:
+                row = np.reshape(new_row_strat, (row_length, 1))
+                col = np.reshape(new_col_strat, (1, col_length))
+                exploitability = self.get_exploitability(row, col)
+
+
             exploitabilities.append(exploitability)
 
-            # recieve reward vector
-            reward_row = self.reward_vector_row(matrix1, new_col_strat)
+
+            # receive reward vector
+            reward_row = self.reward_vector_row(self.row_player_utility_matrix, new_col_strat)
             row_reward_vectors.append(reward_row)
-            reward_col = self.reward_vector_col(matrix2, new_row_strat)
+            reward_col = self.reward_vector_col(self.column_player_utility_matrix, new_row_strat)
             col_reward_vectors.append(reward_col)
             
             
@@ -194,21 +203,21 @@ class NormalFormGameCalculator:
             self.update_regrets(regrets_row, reward_row, current_reward_row)
             self.update_regrets(regrets_col, reward_col, current_reward_col)
             
-            # store current regrets
-            row_regrets_storing.append(reward_row - cumulative_reward_row)
-            col_regrets_storing.append(reward_col - cumulative_reward_col)
+
+            row_regrets.append(reward_row - cumulative_reward_row)
+            col_regrets.append(reward_col - cumulative_reward_col)
             
 
 
 
-        return exploitabilities
+        return exploitabilities, np.average(row_strategies, axis=0), np.average(col_strategies, axis=0)
             
 
     def reward_vector_row(self, matrix: np.array, col_strategy: np.array) -> np.array:
-        return np.inner(matrix, col_strategy)
+        return np.dot(matrix, col_strategy)
 
     def reward_vector_col(self, matrix: np.array, row_strat: np.array) -> np.array:
-        return np.inner(row_strat, matrix)
+        return np.dot(row_strat, matrix)
 
     def regret_matching(self, regrets: np.array):
         positive_regrets = np.maximum(regrets, 0)
