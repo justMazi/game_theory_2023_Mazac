@@ -207,9 +207,6 @@ class NormalFormGameCalculator:
             row_regrets.append(reward_row - cumulative_reward_row)
             col_regrets.append(reward_col - cumulative_reward_col)
             
-
-
-
         return exploitabilities, np.average(row_strategies, axis=0), np.average(col_strategies, axis=0)
             
 
