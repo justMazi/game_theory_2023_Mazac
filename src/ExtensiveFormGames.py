@@ -319,98 +319,109 @@ class ExtensiveFormGameCalculator:
         p2 = self.create_uniform_strategy_for_player(self.players[1])
         return p1, p2
 
-    def self_play(self, chance_strategies=None, iterations=50):
-        # Initialize chance strategies for all chance players using a uniform strategy
-        chance_strategies = chance_strategies or {c: self.create_uniform_strategy_for_player(c)[c] for c in self.chance}
-        
-        # Initialize player strategies for both players with a uniform strategy
-        p1_strategies = [self.create_uniform_strategy_for_player(self.players[0])]
-        p2_strategies = [self.create_uniform_strategy_for_player(self.players[1])]
-        
-        # List to store exploitabilities at each iteration
-        exploitabilities = []
-        
-        # Run the self-play iterations
-        for i in range(iterations):
-            # Update player 1's strategy with the latest one and incorporate chance strategies
-            p1_strat = p1_strategies[-1]
-            p1_strat.update(chance_strategies)
-            
-            # Update player 2's strategy with the latest one and incorporate chance strategies
-            p2_strat = p2_strategies[-1]
-            p2_strat.update(chance_strategies)
-            
-            # Find the best response strategy for player 1 against player 2's strategy
-            br_to_p1 = self.best_response(p1_strat)
-            br_to_p1.update(chance_strategies)
-            
-            # Find the best response strategy for player 2 against player 1's strategy
-            br_to_p2 = self.best_response(p2_strat)
-            br_to_p2.update(chance_strategies)
-            
-            # Append the new strategies to the lists
-            p1_strategies.append(br_to_p2)
-            p2_strategies.append(br_to_p1)
-            
-            # Calculate the average strategies over all iterations for both players and chance players
-            strategies = {
-                self.players[0]: self.average_strategy(p1_strategies)[self.players[0]],
-                self.players[1]: self.average_strategy(p2_strategies)[self.players[1]],
+    def self_play(self, chance_player_strategies=None, iterations=50):
+        # Initialize chance player strategies with a uniform strategy if not provided
+        if chance_player_strategies is None:
+            chance_player_strategies = {
+                chance_player: self.create_uniform_strategy_for_player(chance_player)[chance_player]
+                for chance_player in self.chance
             }
-            strategies.update(chance_strategies)
-            
-            # Calculate and store the exploitability at each iteration
-            exploitabilities.append(self.calculate_exploitability(strategies))
-            
-        return p1_strategies, p2_strategies, exploitabilities
+
+        # Initialize uniform strategies for both players
+        player1_strategies = [self.create_uniform_strategy_for_player(self.players[0])]
+        player2_strategies = [self.create_uniform_strategy_for_player(self.players[1])]
+
+        # List to store exploitabilities at each iteration
+        exploitability_over_time = []
+
+        # Run the self-play iterations
+        for _ in range(iterations):
+            # Get the latest strategies and incorporate chance player strategies
+            latest_strategy_player1 = player1_strategies[-1]
+            latest_strategy_player2 = player2_strategies[-1]
+            latest_strategy_player1.update(chance_player_strategies)
+            latest_strategy_player2.update(chance_player_strategies)
+
+            # Find the best response strategies against the latest strategies
+            best_response_to_player1 = self.best_response(latest_strategy_player1)
+            best_response_to_player2 = self.best_response(latest_strategy_player2)
+            best_response_to_player1.update(chance_player_strategies)
+            best_response_to_player2.update(chance_player_strategies)
+
+            # Append the best response strategies to the strategy lists
+            player1_strategies.append(best_response_to_player2)
+            player2_strategies.append(best_response_to_player1)
+
+            # Calculate the average strategies over all iterations
+            average_strategy_player1 = self.average_strategy(player1_strategies)[self.players[0]]
+            average_strategy_player2 = self.average_strategy(player2_strategies)[self.players[1]]
+            combined_strategies = {
+                self.players[0]: average_strategy_player1,
+                self.players[1]: average_strategy_player2,
+            }
+            combined_strategies.update(chance_player_strategies)
+
+            # Calculate and store the exploitability for the current iteration
+            current_exploitability = self.calculate_exploitability(combined_strategies)
+            exploitability_over_time.append(current_exploitability)
+
+        return player1_strategies, player2_strategies, exploitability_over_time
 
 
 
-    def probability_of_reaching_state(self, strategies, h1, h2):
-        # Calculate the probability of reaching history h2 starting from history h1 using given strategies
-        node = self.get_node_by_history(h1)
-        
-        if not h2.startswith(h1):
-            # Cannot be reached
+
+
+    def probability_of_reaching_state(self, strategies, start_history, target_history):
+        # Calculate the probability of reaching target_history starting from start_history using given strategies
+        current_node = self.get_node_by_history(start_history)
+
+        if not target_history.startswith(start_history):
+            # target_history cannot be reached from start_history
             return 0
-        
-        # Get path from h1 to h2
-        history = h2[len(h1):]
-        prob = 1
-        
-        for a in history:
-            if node.player in strategies:
-                prob *= strategies[node.player][node.information_set][a]
-            node = node.children[a]
-        return prob
 
-    
-    def get_utility_in_infoset(self, strategies, infoset, player):
+        # Get the path from start_history to target_history
+        path = target_history[len(start_history):]
+        probability = 1
+
+        for action in path:
+            if current_node.player in strategies:
+                player_strategy = strategies[current_node.player]
+                information_set = current_node.information_set
+                probability *= player_strategy[information_set][action]
+            current_node = current_node.children[action]
+
+        return probability
+
+
+        
+    def get_utility_of_infoset(self, strategies, infoset, player):
         # Calculate the utility in a specific information set for a given player using given strategies
         infoset_reach_prob = self.calculate_infoset_reach_probability(strategies, infoset)
+        
         if infoset_reach_prob == 0:
             # Infoset cannot be reached
             return 0
-        without_p = {key: val for key, val in strategies.items() if key != player}
+        
+        # Exclude the player's strategy to calculate the utility
+        strategies_without_player = {key: val for key, val in strategies.items() if key != player}
         
         utility = 0
-        terminal_nodes = [self.get_node_by_history(h) for h in self.matrix.keys()]
-        # For every node h1 in the information set
-        for node in self.get_nodes_in_infoset(infoset, player):
-            # For every terminal node h2 in the tree
+        terminal_nodes = [self.get_node_by_history(history) for history in self.matrix.keys()]
+        
+        # Iterate over all nodes in the information set
+        for infoset_node in self.get_nodes_in_infoset(infoset, player):
+            # Iterate over all terminal nodes in the tree
             for terminal_node in terminal_nodes:
-                # Utility is:
-                # the probability of reaching infoset (if the player is trying to reach it)
-                # multiplied by the probability of reaching h2 from h1
-                # multiplied by the reward in h2
-                # for every h1, h2
-                utility += \
-                    self.calculate_node_reach_probability(without_p, node.history) * \
-                    self.probability_of_reaching_state(strategies, node.history, terminal_node.history) * \
+                # Calculate the utility contribution for each pair of nodes
+                utility += (
+                    self.calculate_node_reach_probability(strategies_without_player, infoset_node.history) *
+                    self.probability_of_reaching_state(strategies, infoset_node.history, terminal_node.history) *
                     self.matrix[terminal_node.history][player]
-                    
+                )
+        
         # Normalize by the probability of reaching the infoset
         utility /= infoset_reach_prob
+        
         return utility
 
 
@@ -419,94 +430,125 @@ class ExtensiveFormGameCalculator:
     ############# CFR SECTION ##############
 
     def counterfactual_regret_minimization(self, chance_strategies=None, iterations=50):
+        # Initialize chance strategies for all chance players using a uniform strategy if not provided
         chance_strategies = chance_strategies or {c: self.create_uniform_strategy_for_player(c)[c] for c in self.chance}
         
-        # Dict to store the regrets 
-        regrets = {p: self.prep_regrets(p) for p in self.players}
+        # Initialize regrets dictionary for each player
+        regrets = {player: self.initialize_regrets(player) for player in self.players}
         
-        # Lists to store used strategies 
-        player_strategies = {p: [] for p in self.players}
+        # Initialize empty strategy lists for each player
+        player_strategies = {player: [] for player in self.players}
+        
+        # List to store exploitabilities at each iteration
         exploitabilities = []
         
+        # Run the CFR iterations
         for _ in range(iterations):
-            # Get new strat T from regrets until T-1 
-            for p in self.players:
-                player_strategies[p].append(self.regret_matching(regrets[p], p))
+            # Update player strategies using regret matching
+            for player in self.players:
+                player_strategies[player].append(self.regret_matching(regrets[player], player))
             
             # Calculate exploitability from average strategies
             current_strategies = {}
-            for p in self.players:
-                current_strategies.update(self.average_strategy(player_strategies[p]))
+            for player in self.players:
+                current_strategies.update(self.average_strategy(player_strategies[player]))
             current_strategies.update(chance_strategies)
             
             exploitabilities.append(self.calculate_exploitability(current_strategies))
             
             # Update regrets using current strategies
-            for p in self.players:
-                self.update_regrets(regrets[p], current_strategies, p)
+            for player in self.players:
+                self.update_regrets(regrets[player], current_strategies, player)
         
         return player_strategies, exploitabilities
 
 
-    def prep_regrets(self, player):
+
+    def initialize_regrets(self, player):
         regrets = {}
         for infoset in self.infosets:
-            nodes = self.get_nodes_in_infoset(infoset, player)
-            if len(nodes) == 0:
+            nodes_in_infoset = self.get_nodes_in_infoset(infoset, player)
+            if not nodes_in_infoset:
                 continue
-            regrets[infoset] = {}
-            for a in self.actions_in_infoset[infoset]:
-                regrets[infoset][a] = 0
+            regrets[infoset] = {action: 0 for action in self.actions_in_infoset[infoset]}
         return regrets
-    
-    
-    def regret_matching(self, regrets, player):
-        strat = {
-            player: {}
-        }
-        for infoset in self.infosets:
-            nodes = self.get_nodes_in_infoset(infoset, player)
-            if len(nodes) == 0:
-                continue
 
-            strat[player][infoset] = {}
-            # Get R+ (non-negative regret)
-            regrets_plus = {k: max(v, 0) for k,v in regrets[infoset].items()}
-            reg_sum = sum(regrets_plus.values())
-            for a in self.actions_in_infoset[infoset]:
-                # If atleast one action has positive regret
-                if reg_sum > 0:
-                    strat[player][infoset][a] = regrets_plus[a] / reg_sum
-                # Else uniform
+    
+        
+    def regret_matching(self, regrets, player):
+        """
+        Computes a strategy for the specified player using regret matching.
+
+        Args:
+        - regrets (dict): Dictionary storing regrets for each information set and action pair.
+        - player (str): The player for whom the strategy is being computed.
+
+        Returns:
+        - dict: A strategy dictionary for the player, where strategy[player][infoset][action] 
+                represents the probability of choosing 'action' in 'infoset'.
+        """
+        strategy = {player: {}}
+        
+        # Iterate over each information set that the player has encountered
+        for infoset in self.infosets:
+            nodes_in_infoset = self.get_nodes_in_infoset(infoset, player)
+            
+            # Skip information sets where the player has no nodes
+            if not nodes_in_infoset:
+                continue
+            
+            strategy[player][infoset] = {}
+            
+            # Calculate R+ (non-negative regret) and total positive regret sum
+            regrets_plus = {action: max(regrets[infoset][action], 0) for action in self.actions_in_infoset[infoset]}
+            total_positive_regret = sum(regrets_plus.values())
+            
+            # Compute strategy probabilities
+            for action in self.actions_in_infoset[infoset]:
+                if total_positive_regret > 0:
+                    strategy[player][infoset][action] = regrets_plus[action] / total_positive_regret
                 else:
-                    strat[player][infoset][a] = 1 / len(self.actions_in_infoset[infoset])
-        return strat
+                    strategy[player][infoset][action] = 1 / len(self.actions_in_infoset[infoset])
+        
+        return strategy
+
 
 
     def update_regrets(self, regrets, strategies, player):
-        # pi_-i
-        without_p = {key: val for key, val in strategies.items() if key != player}
+        """
+        Updates regrets for the specified player based on current strategies.
 
+        Args:
+        - regrets (dict): Dictionary storing regrets for each information set and action pair.
+        - strategies (dict): Dictionary containing strategies for all players.
+        - player (str): The player whose regrets are being updated.
+
+        Returns:
+        - None
+        """
+        # Calculate pi_-i (strategies of all other players)
+        without_player_strategies = {key: val for key, val in strategies.items() if key != player}
+
+        # Iterate over each information set that the player has encountered
         for infoset in self.get_infosets():
-            nodes = self.get_nodes_in_infoset(infoset, player)
-            if len(nodes) == 0:
+            nodes_in_infoset = self.get_nodes_in_infoset(infoset, player)
+            
+            # Skip information sets where the player has no nodes
+            if not nodes_in_infoset:
                 continue
             
-            for a in self.actions_in_infoset[infoset]:
-                # Regret in information set I and action a = R(I,a)
-                # is calculated against a strategy that is identical to the player's strategy 
-                # but in infoset I the probability of playing action a is 1
-                strategies_where_a_in_infoset = copy.deepcopy(strategies)
-                for a2 in self.actions_in_infoset[infoset]:
-                    strategies_where_a_in_infoset[player][infoset][a2] = 0
-                strategies_where_a_in_infoset[player][infoset][a] = 1
+            # Iterate over each action in the current information set
+            for action in self.actions_in_infoset[infoset]:
+                # Create a copy of strategies where the player always plays action 'a' in infoset 'I'
+                strategies_where_action_in_infoset = copy.deepcopy(strategies)
+                for other_action in self.actions_in_infoset[infoset]:
+                    strategies_where_action_in_infoset[player][infoset][other_action] = 0
+                strategies_where_action_in_infoset[player][infoset][action] = 1
                 
-                # R(I,a) = 
-                # probability of reaching I if the player is trying to reach it *
-                # (utility with strategies but the player plays a in I - utility with strategies)
-                regrets[infoset][a] += \
-                    self.calculate_infoset_reach_probability(without_p, infoset) * \
+                # Calculate the regret R(I,a)
+                regrets[infoset][action] += \
+                    self.calculate_infoset_reach_probability(without_player_strategies, infoset) * \
                     ( \
-                        self.get_utility_in_infoset(strategies_where_a_in_infoset, infoset, player) - \
-                        self.get_utility_in_infoset(strategies, infoset, player) \
+                        self.get_utility_of_infoset(strategies_where_action_in_infoset, infoset, player) - \
+                        self.get_utility_of_infoset(strategies, infoset, player) \
                     )
