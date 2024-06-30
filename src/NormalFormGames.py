@@ -156,8 +156,8 @@ class NormalFormGameCalculator:
 
         for i in range(iterations):
             # prepare new strategies 
-            new_row_strat = self.regret_matching(regrets_row)
-            new_col_strat = self.regret_matching(regrets_col)
+            new_row_strat = self.match_regrets(regrets_row)
+            new_col_strat = self.match_regrets(regrets_col)
             
             row_strategies.append(new_row_strat)
             col_strategies.append(new_col_strat)
@@ -166,7 +166,6 @@ class NormalFormGameCalculator:
 
             row_length = self.row_player_utility_matrix.shape[0]
             col_length = self.column_player_utility_matrix.shape[1]
-
 
             if use_average_strat_exploitation:
 
@@ -216,15 +215,15 @@ class NormalFormGameCalculator:
     def reward_vector_col(self, matrix: np.array, row_strat: np.array) -> np.array:
         return np.dot(row_strat, matrix)
 
-    def regret_matching(self, regrets: np.array):
+    def match_regrets(self, regrets: np.array):
         positive_regrets = np.maximum(regrets, 0)
-        total_positive = np.sum(positive_regrets)
+        sum_of_positive = np.sum(positive_regrets)
         
-        if total_positive == 0:
-            n = len(regrets)
-            return np.array([1/n for _ in range(n)])
+        if sum_of_positive == 0:
+            length = len(regrets)
+            return np.array([1/length for _ in range(length)])
         
-        return positive_regrets / total_positive
+        return positive_regrets / sum_of_positive
 
     def update_regrets(self, regrets: np.array, rewards: np.array, current_strat_reward: float):
         regrets += rewards - current_strat_reward

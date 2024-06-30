@@ -21,6 +21,15 @@ class Node:
         self.history = history or information_set
         self.children = children or {} 
     
+    def get_actions(self):
+        """
+        Get the actions available from this node (keys of the children dictionary).
+
+        Returns:
+            list: A list of actions available from this node.
+        """
+        return self.children.keys()
+
     def is_terminal(self):
         """
         Check whether the node is a terminal one (meaning it has no children).
@@ -30,14 +39,7 @@ class Node:
         """
         return not self.children
     
-    def actions(self):
-        """
-        Get the actions available from this node (keys of the children dictionary).
 
-        Returns:
-            list: A list of actions available from this node.
-        """
-        return self.children.keys()
 
 class ExtensiveFormGameCalculator:
     def __init__(self, players: list, chance: list, root: Node, matrix: dict):
@@ -53,7 +55,7 @@ class ExtensiveFormGameCalculator:
         Returns:
             None
         """
-        self.players = players 
+        self.players = players
         self.chance = chance
         self.root = root
         self.matrix = matrix
@@ -157,7 +159,7 @@ class ExtensiveFormGameCalculator:
         
         values = {p: 0 for p in self.players}
 
-        for action in node.actions():
+        for action in node.get_actions():
             a_values = self.get_value_from_history(strategies, node.children[action])
             for p in self.players:
                 values[p] += a_values[p] * strategies[player][information_set][action]
@@ -168,54 +170,53 @@ class ExtensiveFormGameCalculator:
     def average_strategy(self, strategies):
         # Calculate the average strategy over all players and information sets
         player = next(iter(strategies[0]))
-        avg_strat = {player: {}}
+        average_strategy = {player: {}}
         for information_set in strategies[0][player].keys():
-            avg_strat[player][information_set] = {}
+            average_strategy[player][information_set] = {}
             for action in strategies[0][player][information_set].keys():
-                avg_strat[player][information_set][action] = 0
+                average_strategy[player][information_set][action] = 0
         
         # Use DFS to calculate average strategy
-        self.average_strategy_traverse_dfs(self.root, strategies, avg_strat, player)
+        self.average_strategy_traverse_dfs(self.root, strategies, average_strategy, player)
         
         # Normalize the average strategy
-        for infoset in avg_strat[player].keys():
-            total_sum = sum(avg_strat[player][infoset].values())
-            number_of_actions = len(avg_strat[player][infoset].keys())
-            for action in avg_strat[player][infoset]:
+        for infoset in average_strategy[player].keys():
+            total_sum = sum(average_strategy[player][infoset].values())
+            number_of_actions = len(average_strategy[player][infoset].keys())
+            for action in average_strategy[player][infoset]:
                 if total_sum == 0:
-                    avg_strat[player][infoset][action] = 1/number_of_actions
+                    average_strategy[player][infoset][action] = 1/number_of_actions
                 else:
-                    avg_strat[player][infoset][action] /= total_sum
+                    average_strategy[player][infoset][action] /= total_sum
         
-        return avg_strat
+        return average_strategy
     
-    def average_strategy_traverse_dfs(self, node: Node, strategies, avg_strat, player):
+    def average_strategy_traverse_dfs(self, node: Node, strategies, average_strategy, player):
         # Depth-first search to calculate average strategy
         if node.is_terminal():
             return
         
         # Skip nodes where the player does not play
         if node.player != player:
-            for action in node.actions():
-                self.average_strategy_traverse_dfs(node.children[action], strategies, avg_strat, player)
+            for action in node.get_actions():
+                self.average_strategy_traverse_dfs(node.children[action], strategies, average_strategy, player)
             return
         
         information_set = node.information_set
         # reach_prob = self.calculate_reach_probability(avg_strat, node.history)
         strat_reach_prob = [self.calculate_node_reach_probability(s, node.history) for s in strategies]
         
-        for action in node.actions():
+        for action in node.get_actions():
             for i, strat in enumerate(strategies):
                 # Sum up (reach probability * probability of action) for each strategy
-                avg_strat[player][information_set][action] += strat_reach_prob[i] * strat[player][information_set][action]
+                average_strategy[player][information_set][action] += strat_reach_prob[i] * strat[player][information_set][action]
 
-            self.average_strategy_traverse_dfs(node.children[action], strategies, avg_strat, player)
+            self.average_strategy_traverse_dfs(node.children[action], strategies, average_strategy, player)
                 
     def best_response(self, strategies, node: Node = None):
         # Find the best response strategy against given strategies
         assert len(strategies.keys()) == len(self.players) + len(self.chance) - 1
         
-        # Get the player we need
         player = next(p for p in self.players if p not in strategies)
         node = node or self.root
         
@@ -225,7 +226,6 @@ class ExtensiveFormGameCalculator:
         return best_response
     
     def get_best_response(self, strategies, node: Node, best_response: dict, player, information_set_values: dict = {}):
-        # Use recursive DFS to find the best response strategy
         if node.is_terminal():
             return self.matrix[node.history][player]
         
@@ -238,30 +238,24 @@ class ExtensiveFormGameCalculator:
             
             nodes_in_information_set = self.get_nodes_in_infoset(information_set, player)
         
-            for action in node.actions():
-                # Calculate the value of each action 
+            for action in node.get_actions():
                 action_values[action] = 0
-                # Set probability to 0
                 best_response[player][information_set][action] = 0
                 for possible_node in nodes_in_information_set:
-                    # For each possible node (history) the action value is (probability of reaching node * utility of action)
                     action_val = \
                         self.calculate_node_reach_probability(strategies, possible_node.history) *\
                         self.get_best_response(strategies, possible_node.children[action], best_response, player, information_set_values)
-                    # For action value sum over every possible node
                     action_values[action] += action_val
-            # Best response is then the action with max action value
             best_response[player][information_set][max(action_values, key=action_values.get)] = 1
             return max(action_values.values())
         
         # Not this player's turn
         else:
-            for action in node.actions():
+            for action in node.get_actions():
                 action_values[action] = \
                     strategies[node.player][node.information_set][action] * \
                     self.get_best_response(strategies, node.children[action], best_response, player, information_set_values)
 
-            # return (utility of action * probability of action) for each possible action
             return sum(action_values.values())
     
     def calculate_deltas(self, strategies):
@@ -278,7 +272,6 @@ class ExtensiveFormGameCalculator:
             # Calculate u_i using br with fixed -i
             best_response_utility[p] = self.calculate_player_values(without_p)[p]
         
-
         deltas = {p: best_response_utility[p] - game_values[p] for p in self.players}
         return deltas
     
@@ -296,20 +289,16 @@ class ExtensiveFormGameCalculator:
         return self.calculate_nash_conv(strategies) / len(self.players)
     
     def create_uniform_strategy_for_player(self, player):
-        # Create a uniform strategy for a given player
         strat = {player: {}}
         all_infosets = self.get_infosets()
         for infoset, nodes in all_infosets.items():
-            # Get the infosets where it is passed in player's turn
             nodes = [n for n in nodes if n.player == player]
             if len(nodes) == 0:
                 continue
             
-            # Get actions
             node = nodes[0]
             actions = node.actions()
             
-            # Probability of playing a is 1 / |A|
             count = len(actions)
             strat[player][infoset] = {a: 1 / count for a in actions}
         return strat
