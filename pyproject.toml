@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agt"
+version = "1.0.0"
+description = "Algorithmic game theory algorithms implemented from scratch, up to counterfactual regret minimization"
+requires-python = ">=3.9"
+dependencies = ["numpy", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["agt*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
